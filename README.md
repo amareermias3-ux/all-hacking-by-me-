@@ -1,27 +1,22 @@
-# Advanced Security Audit Tool
+# Advanced Security Audit Framework (v6)
 
-An advanced professional red-team exploitation and security auditing framework designed for multi-platform credential harvesting, network scanning, and session analysis. Built with Python for authorized penetration testing and educational purposes.
+A professional, Python-based security auditing and red-teaming framework designed for authorized security testing, device telemetry analysis, and multi-template simulation.
 
-## 🚀 Features
+## 🚀 Key Features
 
-- **Network Port Scanner & Service Discovery**: Identify open ports and active services on target networks.
-- **Targeted Account Brute-Forcer**: Support for email, social media, and web authentication testing.
-- **Live GPS & Continuous Media Tracking Engine**: Advanced location and media gathering capabilities.
-- **Professional High-Fidelity Phishing Suite**: Includes high-accuracy templates for:
-  - Instagram
-  - WhatsApp
-  - Telegram
-  - Facebook
-  - TikTok
-- **High-Concurrency Support**: Utilizes `ThreadingMixIn` for fast and efficient request handling.
-- **Secure Tunnel Integration**: Seamlessly works with `cloudflared` for clean, warning-free public URLs.
+* **Multi-Template Selector**: Dynamic menu supporting multiple brand templates (Facebook, Google, Instagram, Netflix).
+* **Real-Time Telegram Exfiltration**: Instant alerts sent directly to your Telegram bot for captured credentials, telemetry, and OTPs.
+* **Advanced Device Intelligence**: Gathers screen resolution, platform, hardware concurrency, device memory, battery status, and connection types.
+* **IP Geolocation & ISP Tracking**: Automatically resolves the client's real IP (with Cloudflare header support) to country, city, and ISP data.
+* **Anti-Bot Evasion**: Client-side human interaction checks (mouse movement and touch events) to bypass automated scanners.
+* **2FA / OTP Interception**: Dual-stage verification module supporting 6-digit code capture.
+* **Threaded HTTP Server**: High-performance multi-threaded Python server.
 
 ---
 
-## 📥 Installation
+## 🛠️ Installation & Setup
 
-Clone the repository to your local machine (Kali Linux recommended):
-
-```bash
-git clone [https://github.com/amareermias3-ux/hacking-.git](https://github.com/amareermias3-ux/hacking-.git)
-cd hacking-
+1. **Clone the Repository:**
+   ```bash
+   git clone [https://github.com/amareermias3-ux/hacking-.git](https://github.com/amareermias3-ux/hacking-.git)
+   cd hacking-
