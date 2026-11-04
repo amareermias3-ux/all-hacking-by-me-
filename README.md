@@ -84,14 +84,3 @@ ngrok http 8080
 
 *This tool is created strictly for educational purposes and authorized security auditing, vulnerability assessments, and penetration testing engagements with explicit permission. The author and contributors assume no liability for misuse or damage caused by this software.*
 
-```
-
----
-
-### ወደ ጊትሀብ (GitHub) ለመጫን፦
-```bash
-git add README.md
-git commit -m "Update README with clear step-by-step server execution and tunneling commands"
-git push origin main
-
-```
